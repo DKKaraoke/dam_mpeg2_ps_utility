@@ -641,7 +641,7 @@ class Mpeg2Ps:
             return
         crc32 = int.from_bytes(crc32_buffer, byteorder='big')
 
-        return Mpeg2PsProgramStreamMap(current_next_indicator, program_stream_map_version, program_stream_info, elementary_stream_map, crc32)
+        return Mpeg2PsProgramStreamMap(current_next_indicator, program_stream_map_version, program_stream_info, elementary_stream_map)
 
     @staticmethod
     def serialize_program_stream_map(data: Mpeg2PsProgramStreamMap):
@@ -687,8 +687,8 @@ class Mpeg2Ps:
                    4).to_bytes(2, byteorder='big')
         buffer += program_stream_map_buffer
 
-        # crc32 = Mpeg2Ps.crc32(buffer)
-        # buffer += crc32.to_bytes(4, byteorder='big')
-        buffer += b'\x46\x17\x52\x32'
+        crc32 = Mpeg2Ps.crc32(buffer)
+        buffer += crc32.to_bytes(4, byteorder='big')
+        # buffer += b'\x46\x17\x52\x32'
 
         return buffer
