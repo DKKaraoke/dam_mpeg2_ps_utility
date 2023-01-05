@@ -112,4 +112,3 @@ class Mpeg2PsProgramStreamMap(NamedTuple):
     program_stream_map_version: int
     program_stream_info: list[Mpeg2Descriptor]
     elementary_stream_map: list[Mpeg2PsElementaryStreamMapEntry]
-    crc32: int
