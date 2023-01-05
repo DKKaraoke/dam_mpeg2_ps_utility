@@ -8,7 +8,7 @@ class Mpeg2PesPacketType1(NamedTuple):
     PTS_DTS_flags: int
     pts: int
     dts: int
-    # PES_packet_data_byte: bytes
+    PES_packet_data: bytes
 
 
 class Mpeg2PesPacketType2(NamedTuple):
@@ -18,7 +18,7 @@ class Mpeg2PesPacketType2(NamedTuple):
 
 class Mpeg2PesPacketType3(NamedTuple):
     stream_id: int
-    PES_packet_lengt: int
+    PES_packet_length: int
 
 
 Mpeg2PesPacket = Union[Mpeg2PesPacketType1,

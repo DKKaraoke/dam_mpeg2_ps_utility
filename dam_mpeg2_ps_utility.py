@@ -46,7 +46,7 @@ class DamMpeg2PsUtility:
 
         header_buffer = stream.read(6)
         if len(header_buffer) != 6:
-            DamMpeg2PsUtility.__logger.warning('Invalid header_buffer length')
+            DamMpeg2PsUtility.__logger.warning('Invalid header_buffer length.')
             return
 
         sub_stream_id = header_buffer[0]
@@ -60,7 +60,7 @@ class DamMpeg2PsUtility:
             entry_buffer = stream.read(12)
             if len(entry_buffer) != 12:
                 DamMpeg2PsUtility.__logger.warning(
-                    'Invalid entry_buffer length')
+                    'Invalid entry_buffer length.')
                 return
             ps_pack_header_position = int.from_bytes(
                 entry_buffer[0:5], byteorder='big')
@@ -94,11 +94,11 @@ class DamMpeg2PsUtility:
     def load_gop_index(stream: io.BufferedReader):
         packet_id = Mpeg2Ps.seek_packet(stream, 0xbf)
         if packet_id is None:
-            DamMpeg2PsUtility.__logger.warning('GOP index not found')
+            DamMpeg2PsUtility.__logger.warning('GOP index not found.')
             return
         pes_packet = Mpeg2Ps.read_pes_packet(stream)
         if pes_packet is None:
-            DamMpeg2PsUtility.__logger.warning('Invalid pes_packet')
+            DamMpeg2PsUtility.__logger.warning('Invalid pes_packet.')
             return
         gop_index_stream = io.BytesIO(pes_packet.data)
         return DamMpeg2PsUtility.__read_gop_index(gop_index_stream)
@@ -111,11 +111,11 @@ class DamMpeg2PsUtility:
         packet_id = Mpeg2Ps.seek_packet(stream, 0xba)
         if packet_id is None:
             DamMpeg2PsUtility.__logger.warning(
-                'MPEG2-PS Pack Header not found')
+                'MPEG2-PS Pack Header not found.')
         else:
             ps_pack_header = Mpeg2Ps.read_ps_pack_header(stream)
             if ps_pack_header is None:
-                DamMpeg2PsUtility.__logger.warning('Invalid ps_pack_header')
+                DamMpeg2PsUtility.__logger.warning('Invalid ps_pack_header.')
             else:
                 compatibility |= DamMpeg2PsCompatibility.CONTAINER_PS_PACK_HEADER
         stream.seek(start_position)
@@ -123,11 +123,11 @@ class DamMpeg2PsUtility:
         packet_id = Mpeg2Ps.seek_packet(stream, 0xbb)
         if packet_id is None:
             DamMpeg2PsUtility.__logger.warning(
-                'MPEG2-PS System Header not found')
+                'MPEG2-PS System Header not found.')
         else:
             ps_system_header = Mpeg2Ps.read_ps_system_header(stream)
             if ps_system_header is None:
-                DamMpeg2PsUtility.__logger.warning('Invalid ps_system_header')
+                DamMpeg2PsUtility.__logger.warning('Invalid ps_system_header.')
             else:
                 compatibility |= DamMpeg2PsCompatibility.CONTAINER_PS_SYSTEM_HEADER
         stream.seek(start_position)
@@ -135,23 +135,23 @@ class DamMpeg2PsUtility:
         packet_id = Mpeg2Ps.seek_packet(stream, 0xbc)
         if packet_id is None:
             DamMpeg2PsUtility.__logger.warning(
-                'MPEG2-PS Program Stream Map not found')
+                'MPEG2-PS Program Stream Map not found.')
         else:
             program_stream_map = Mpeg2Ps.read_program_stream_map(stream)
             if program_stream_map is None:
                 DamMpeg2PsUtility.__logger.warning(
-                    'Invalid program_stream_map')
+                    'Invalid program_stream_map.')
             else:
                 compatibility |= DamMpeg2PsCompatibility.CONTAINER_PS_PROGRAM_STREAM_MAP
         stream.seek(start_position)
 
         packet_id = Mpeg2Ps.seek_packet(stream, 0xbf)
         if packet_id is None:
-            DamMpeg2PsUtility.__logger.warning('GOP index not found')
+            DamMpeg2PsUtility.__logger.warning('GOP index not found.')
         else:
             gop_index = DamMpeg2PsUtility.__read_gop_index(stream)
             if gop_index is None:
-                DamMpeg2PsUtility.__logger.warning('Invalid gop_index')
+                DamMpeg2PsUtility.__logger.warning('Invalid gop_index.')
             else:
                 compatibility |= DamMpeg2PsCompatibility.CONTAINER_GOP_INDEX
         stream.seek(start_position)
@@ -179,7 +179,7 @@ class DamMpeg2PsUtility:
             ps_pack_header_position = stream.tell() - first_packet_position
             ps_pack_header = Mpeg2Ps.read_ps_pack_header(stream)
             if ps_pack_header is None:
-                DamMpeg2PsUtility.__logger.warning('Invalid ps_pack_header')
+                DamMpeg2PsUtility.__logger.warning('Invalid ps_pack_header.')
                 continue
             packet_id = Mpeg2Ps.read_packet_id(stream)
             if packet_id == 0xbb:
@@ -193,7 +193,7 @@ class DamMpeg2PsUtility:
             if packet_id == stream_id:
                 pes_packet = Mpeg2Ps.read_pes_packet(stream)
                 if pes_packet is None:
-                    DamMpeg2PsUtility.__logger.warning('Invalid pes_packet')
+                    DamMpeg2PsUtility.__logger.warning('Invalid pes_packet.')
                     continue
                 if pes_packet.pts is None:
                     continue
@@ -209,7 +209,7 @@ class DamMpeg2PsUtility:
                 # Seek start of Access Unit
                 if next_pes_packet is None:
                     DamMpeg2PsUtility.__logger.warning(
-                        'Invalid next_pes_packet')
+                        'Invalid next_pes_packet.')
                     break
                 if next_pes_packet.pts is not None:
                     stream.seek(next_pes_packet_position)
@@ -319,7 +319,7 @@ class DamMpeg2PsUtility:
                 ps_system_header = Mpeg2Ps.read_ps_system_header(input_stream)
                 if ps_system_header is None:
                     DamMpeg2PsUtility.__logger.warning(
-                        'Invalid ps_system_header')
+                        'Invalid ps_system_header.')
                     input_stream.seek(4, os.SEEK_CUR)
                     continue
             elif old_stream_id != new_stream_id and packet_id == old_stream_id:
@@ -419,11 +419,17 @@ def main(argv=None):
 
         if args.dump:
             gop_index = DamMpeg2PsUtility.load_gop_index(input_stream)
+            if gop_index is None:
+                print('Failed to parse GOP index.')
+                return
             print(
                 f'gop_index: sub_stream_id={gop_index.sub_stream_id}, version={gop_index.version}, stream_id={gop_index.stream_id}, page_number={gop_index.page_number}, page_count={gop_index.page_count}')
+            if len(gop_index.gops) == 0:
+                return
+            pts_offset = gop_index.gops[0].pts
             for index, gop in enumerate(gop_index.gops):
                 print(
-                    f'gop_index[{index}]: ps_pack_header_position={gop.ps_pack_header_position}, access_unit_size={gop.access_unit_size}, pts={gop.pts}, pts_msec={gop.pts / 90}')
+                    f'gop_index[{index}]: ps_pack_header_position={gop.ps_pack_header_position}, access_unit_size={gop.access_unit_size}, pts={gop.pts}, pts_msec={gop.pts / 90}, related_pts_msec={(gop.pts - pts_offset) / 90}')
             return
 
         if args.analyze:
@@ -431,9 +437,12 @@ def main(argv=None):
                 input_stream, args.stream_id)
             print(
                 f'gop_index: sub_stream_id={gop_index.sub_stream_id}, version={gop_index.version}, stream_id={gop_index.stream_id}, page_number={gop_index.page_number}, page_count={gop_index.page_count}')
+            if len(gop_index.gops) == 0:
+                return
+            pts_offset = gop_index.gops[0].pts
             for index, gop in enumerate(gop_index.gops):
                 print(
-                    f'gop_index[{index}]: ps_pack_header_position={gop.ps_pack_header_position}, access_unit_size={gop.access_unit_size}, pts={gop.pts}, pts_msec={gop.pts / 90}')
+                    f'gop_index[{index}]: ps_pack_header_position={gop.ps_pack_header_position}, access_unit_size={gop.access_unit_size}, pts={gop.pts}, pts_msec={gop.pts / 90}, related_pts_msec={(gop.pts - pts_offset) / 90}')
             return
 
         if args.output_path is not None:

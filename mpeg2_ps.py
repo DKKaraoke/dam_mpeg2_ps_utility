@@ -91,10 +91,10 @@ class Mpeg2Ps:
         if restore_position:
             stream.seek(start_position)
         if len(buffer) != 4:
-            Mpeg2Ps.__logger.warning('Invalid buffer length')
+            Mpeg2Ps.__logger.warning('Invalid buffer length.')
             return
         if buffer[0:3] != Mpeg2Ps.PACKET_START_CODE:
-            Mpeg2Ps.__logger.warning('Invalid packet start code')
+            Mpeg2Ps.__logger.warning('Invalid packet start code.')
             return
         return buffer[3]
 
@@ -102,38 +102,49 @@ class Mpeg2Ps:
     def read_pes_packet(stream: io.BufferedReader):
         header_buffer = stream.read(6)
         if len(header_buffer) != 6:
-            Mpeg2Ps.__logger.warning('Invalid header_buffer length')
+            Mpeg2Ps.__logger.warning('Invalid header_buffer length.')
             return
 
         packet_start_code_prefix = header_buffer[0:3]
         if packet_start_code_prefix != Mpeg2Ps.PACKET_START_CODE:
-            Mpeg2Ps.__logger.warning('Invalid packet_start_code_prefix')
+            Mpeg2Ps.__logger.warning('Invalid packet_start_code_prefix.')
             return
         stream_id = header_buffer[3]
         PES_packet_length = int.from_bytes(header_buffer[4:6], byteorder='big')
+        PES_packet_buffer = stream.read(PES_packet_length)
+        if len(PES_packet_buffer) != PES_packet_length:
+            Mpeg2Ps.__logger.warning('Invalid PES_packet_buffer length.')
+            return
+        PES_packet_stream = io.BytesIO(PES_packet_buffer)
         if stream_id != 0xbc and stream_id != 0xbe and stream_id != 0xbf and stream_id != 0xf0 and stream_id != 0xf1 and stream_id != 0xbc and 0xff and stream_id != 0xf2 and stream_id != 0xf8:
-            extension_buffer = stream.read(3)
+            extension_buffer = PES_packet_stream.read(3)
             if len(extension_buffer) != 3:
-                Mpeg2Ps.__logger.warning('Invalid extension_buffer length')
+                Mpeg2Ps.__logger.warning('Invalid extension_buffer length.')
                 return
             flags = int.from_bytes(extension_buffer[0:2], byteorder='big')
             PTS_DTS_flags = (flags >> 6) & 0x02
             PES_header_data_length = extension_buffer[2]
+            PES_header_data_buffer = PES_packet_stream.read(
+                PES_header_data_length)
+            if len(PES_header_data_buffer) != PES_header_data_length:
+                Mpeg2Ps.__logger.warning('Invalid PES_header_data_buffer length.')
+                return
+            PES_header_data_stream = io.BytesIO(PES_header_data_buffer)
             pts: int | None = None
             dts: int | None = None
             if PTS_DTS_flags == 0x02:
-                PTS_buffer = stream.read(5)
+                PTS_buffer = PES_header_data_stream.read(5)
                 if len(PTS_buffer) != 5:
-                    Mpeg2Ps.__logger.warning('Invalid PTS_buffer length')
+                    Mpeg2Ps.__logger.warning('Invalid PTS_buffer length.')
                     return
                 raw_PTS = int.from_bytes(PTS_buffer, byteorder='big')
                 pts = (raw_PTS >> 3) & (0x0007 << 30)
                 pts |= (raw_PTS >> 2) & (0x7fff << 15)
                 pts |= (raw_PTS >> 1) & 0x7fff
             if PTS_DTS_flags == 0x03:
-                PTS_DTS_buffer = stream.read(10)
+                PTS_DTS_buffer = PES_header_data_stream.read(10)
                 if len(PTS_DTS_buffer) != 10:
-                    Mpeg2Ps.__logger.warning('Invalid PTS_DTS_buffer length')
+                    Mpeg2Ps.__logger.warning('Invalid PTS_DTS_buffer length.')
                     return
                 raw_PTS = int.from_bytes(PTS_DTS_buffer[0:5], byteorder='big')
                 pts = (raw_PTS >> 3) & (0x0007 << 30)
@@ -143,11 +154,13 @@ class Mpeg2Ps:
                 dts = (raw_DTS >> 3) & (0x0007 << 30)
                 dts |= (raw_DTS >> 2) & (0x7fff << 15)
                 dts |= (raw_DTS >> 1) & 0x7fff
-            return Mpeg2PesPacketType1(stream_id, PES_packet_length, PES_header_data_length, PTS_DTS_flags, pts, dts)
+            PES_packet_data = PES_packet_stream.read()
+            # print(PES_packet_data.hex())
+            return Mpeg2PesPacketType1(stream_id, PES_packet_length, PES_header_data_length, PTS_DTS_flags, pts, dts, PES_packet_data)
         elif stream_id == 0xbc or stream_id == 0xbf or stream_id == 0xf0 or stream_id == 0xf1 or stream_id == 0xbc and 0xff or stream_id == 0xf2 or stream_id == 0xf8:
-            data_buffer = stream.read(PES_packet_length)
+            data_buffer = PES_packet_stream.read(PES_packet_length)
             if len(data_buffer) != PES_packet_length:
-                Mpeg2Ps.__logger.warning('Invalid data_buffer length')
+                Mpeg2Ps.__logger.warning('Invalid data_buffer length.')
                 return
             return Mpeg2PesPacketType2(stream_id, data_buffer)
         elif stream_id == 0xbe:
@@ -167,7 +180,7 @@ class Mpeg2Ps:
 
         pack_start_code = buffer[0:4]
         if pack_start_code != (Mpeg2Ps.PACKET_START_CODE + b'\xba'):
-            Mpeg2Ps.__logger.warning('Invalid pack_start_code')
+            Mpeg2Ps.__logger.warning('Invalid pack_start_code.')
             return
         system_clock_reference_raw = int.from_bytes(
             buffer[4:10], byteorder='big')
@@ -185,11 +198,11 @@ class Mpeg2Ps:
 
         stuffing_bytes = stream.read(pack_stuffing_length)
         if len(stuffing_bytes) != pack_stuffing_length:
-            Mpeg2Ps.__logger.warning('Invalid stuffing_bytes length')
+            Mpeg2Ps.__logger.warning('Invalid stuffing_bytes length.')
             return
         for stuffing_byte in stuffing_bytes:
             if stuffing_byte != 0xff:
-                Mpeg2Ps.__logger.warning('Invalid stuffing_byte')
+                Mpeg2Ps.__logger.warning('Invalid stuffing_byte.')
                 return
 
         return Mpeg2PsPackHeader(system_clock_reference_base, system_clock_reference_extension, program_mux_rate, pack_stuffing_length)
@@ -225,16 +238,16 @@ class Mpeg2Ps:
 
         system_header_start_code = packet_header_buffer[0:4]
         if system_header_start_code != (Mpeg2Ps.PACKET_START_CODE + b'\xbb'):
-            Mpeg2Ps.__logger.warning('Invalid system_header_start_code')
+            Mpeg2Ps.__logger.warning('Invalid system_header_start_code.')
             return
         header_length = int.from_bytes(
             packet_header_buffer[4:6], byteorder='big')
         header_buffer = stream.read(header_length)
         if header_length < 6:
-            Mpeg2Ps.__logger.warning('Invalid header_length')
+            Mpeg2Ps.__logger.warning('Invalid header_length.')
             return
         if len(header_buffer) != header_length:
-            Mpeg2Ps.__logger.warning('Invalid header_buffer length')
+            Mpeg2Ps.__logger.warning('Invalid header_buffer length.')
             return
         header_stream = io.BytesIO(header_buffer)
 
@@ -249,7 +262,7 @@ class Mpeg2Ps:
         packet_rate_restriction_flag = header_buffer[5] >> 7
         reserved_bits = header_buffer[5] & 0x7f
         if reserved_bits != 0x7f:
-            Mpeg2Ps.__logger.warning('Invalid reserved_bits')
+            Mpeg2Ps.__logger.warning('Invalid reserved_bits.')
             return
 
         P_STD_info: list[Mpeg2PsSystemHeaderPStdInfo] = []
@@ -265,7 +278,7 @@ class Mpeg2Ps:
                 break
             temp_buffer = header_stream.read(2)
             if len(temp_buffer) != 2:
-                Mpeg2Ps.__logger.warning('Invalid a P_STD_info entry')
+                Mpeg2Ps.__logger.warning('Invalid a P_STD_info entry.')
                 return
             temp = int.from_bytes(temp_buffer, byteorder='big')
             P_STD_buffer_bound_scale = (temp >> 13) & 0x01
@@ -313,7 +326,8 @@ class Mpeg2Ps:
         if len(descriptor_header_buffer) == 0:
             return
         if len(descriptor_header_buffer) != 2:
-            Mpeg2Ps.__logger.warning('Invalid descriptor_header_buffer length')
+            Mpeg2Ps.__logger.warning(
+                'Invalid descriptor_header_buffer length.')
             return
         descriptor_tag = descriptor_header_buffer[0]
 
@@ -340,13 +354,14 @@ class Mpeg2Ps:
         if len(descriptor_header_buffer) == 0:
             return
         if len(descriptor_header_buffer) != 2:
-            Mpeg2Ps.__logger.warning('Invalid descriptor_header_buffer length')
+            Mpeg2Ps.__logger.warning(
+                'Invalid descriptor_header_buffer length.')
             return
         descriptor_tag = descriptor_header_buffer[0]
         descriptor_length = descriptor_header_buffer[1]
         data_buffer = stream.read(descriptor_length)
         if len(data_buffer) != descriptor_length:
-            Mpeg2Ps.__logger.warning('Invalid data_buffer length')
+            Mpeg2Ps.__logger.warning('Invalid data_buffer length.')
             return
         return Mpeg2GenericDescriptor(descriptor_tag, data_buffer)
 
@@ -356,19 +371,20 @@ class Mpeg2Ps:
         if len(descriptor_header_buffer) == 0:
             return
         if len(descriptor_header_buffer) != 2:
-            Mpeg2Ps.__logger.warning('Invalid descriptor_header_buffer length')
+            Mpeg2Ps.__logger.warning(
+                'Invalid descriptor_header_buffer length.')
             return
         descriptor_tag = descriptor_header_buffer[0]
         if descriptor_tag != 0x28:
-            Mpeg2Ps.__logger.warning('Invalid descriptor_tag')
+            Mpeg2Ps.__logger.warning('Invalid descriptor_tag.')
             return
         descriptor_length = descriptor_header_buffer[1]
         if descriptor_length != 4:
-            Mpeg2Ps.__logger.warning('Invalid descriptor_length')
+            Mpeg2Ps.__logger.warning('Invalid descriptor_length.')
             return
         data_buffer = stream.read(descriptor_length)
         if len(data_buffer) != descriptor_length:
-            Mpeg2Ps.__logger.warning('Invalid data_buffer length')
+            Mpeg2Ps.__logger.warning('Invalid data_buffer length.')
             return
         profile_idc = data_buffer[0]
         flags_1 = data_buffer[1]
@@ -392,19 +408,20 @@ class Mpeg2Ps:
         if len(descriptor_header_buffer) == 0:
             return
         if len(descriptor_header_buffer) != 2:
-            Mpeg2Ps.__logger.warning('Invalid descriptor_header_buffer length')
+            Mpeg2Ps.__logger.warning(
+                'Invalid descriptor_header_buffer length.')
             return
         descriptor_tag = descriptor_header_buffer[0]
         if descriptor_tag != 0x2b:
-            Mpeg2Ps.__logger.warning('Invalid descriptor_tag')
+            Mpeg2Ps.__logger.warning('Invalid descriptor_tag.')
             return
         descriptor_length = descriptor_header_buffer[1]
         if descriptor_length != 3:
-            Mpeg2Ps.__logger.warning('Invalid descriptor_length')
+            Mpeg2Ps.__logger.warning('Invalid descriptor_length.')
             return
         data_buffer = stream.read(descriptor_length)
         if len(data_buffer) != descriptor_length:
-            Mpeg2Ps.__logger.warning('Invalid data_buffer length')
+            Mpeg2Ps.__logger.warning('Invalid data_buffer length.')
             return
         MPEG_2_AAC_profile = data_buffer[0]
         MPEG_2_AAC_channel_configuration = data_buffer[1]
@@ -417,19 +434,20 @@ class Mpeg2Ps:
         if len(descriptor_header_buffer) == 0:
             return
         if len(descriptor_header_buffer) != 2:
-            Mpeg2Ps.__logger.warning('Invalid descriptor_header_buffer length')
+            Mpeg2Ps.__logger.warning(
+                'Invalid descriptor_header_buffer length.')
             return
         descriptor_tag = descriptor_header_buffer[0]
         if descriptor_tag != 0x38 and descriptor_tag != 0x39:
-            Mpeg2Ps.__logger.warning('Invalid descriptor_tag')
+            Mpeg2Ps.__logger.warning('Invalid descriptor_tag.')
             return
         descriptor_length = descriptor_header_buffer[1]
         if descriptor_length != 13 and descriptor_length != 15:
-            Mpeg2Ps.__logger.warning('Invalid descriptor_length')
+            Mpeg2Ps.__logger.warning('Invalid descriptor_length.')
             return
         data_buffer = stream.read(13)
         if len(data_buffer) != 13:
-            Mpeg2Ps.__logger.warning('Invalid data_buffer length')
+            Mpeg2Ps.__logger.warning('Invalid data_buffer length.')
             return
         temp = data_buffer[0]
         profile_space = temp >> 6
@@ -455,7 +473,7 @@ class Mpeg2Ps:
         if temporal_layer_subset_flag == 0x01:
             extension_buffer = stream.read(2)
             if len(extension_buffer) != 2:
-                Mpeg2Ps.__logger.warning('Invalid extension_buffer length')
+                Mpeg2Ps.__logger.warning('Invalid extension_buffer length.')
                 return
             temporal_id_min = extension_buffer[0] >> 5
             temporal_id_max = extension_buffer[1] >> 5
@@ -550,18 +568,18 @@ class Mpeg2Ps:
             return
         packet_start_code_prefix = header_buffer[0:3]
         if packet_start_code_prefix != Mpeg2Ps.PACKET_START_CODE:
-            Mpeg2Ps.__logger.warning('Invalid packet_start_code_prefix')
+            Mpeg2Ps.__logger.warning('Invalid packet_start_code_prefix.')
             return
         map_stream_id = header_buffer[3]
         if map_stream_id != 0xbc:
-            Mpeg2Ps.__logger.warning('Invalid map_stream_id')
+            Mpeg2Ps.__logger.warning('Invalid map_stream_id.')
             return
         program_stream_map_length = int.from_bytes(
             header_buffer[4:6], byteorder='big')
         program_stream_map_buffer = stream.read(program_stream_map_length)
         if len(program_stream_map_buffer) != program_stream_map_length:
             Mpeg2Ps.__logger.warning(
-                'Invalid program_stream_map_buffer length')
+                'Invalid program_stream_map_buffer length.')
             return
         program_stream_map_stream = io.BytesIO(program_stream_map_buffer)
 
@@ -576,7 +594,7 @@ class Mpeg2Ps:
             program_stream_info_length)
         if len(program_stream_info_buffer) != program_stream_info_length:
             Mpeg2Ps.__logger.warning(
-                'Invalid program_stream_info_buffer length')
+                'Invalid program_stream_info_buffer length.')
             return
         program_stream_info_stream = io.BytesIO(program_stream_info_buffer)
         while True:
@@ -589,7 +607,7 @@ class Mpeg2Ps:
         elementary_stream_map_length_buffer = program_stream_map_stream.read(2)
         if len(elementary_stream_map_length_buffer) != 2:
             Mpeg2Ps.__logger.warning(
-                'elementary_stream_map_length_buffer not found')
+                'elementary_stream_map_length_buffer not found.')
             return
         elementary_stream_map_length = int.from_bytes(
             elementary_stream_map_length_buffer, byteorder='big')
@@ -597,7 +615,7 @@ class Mpeg2Ps:
             elementary_stream_map_length)
         if len(elementary_stream_map_buffer) != elementary_stream_map_length:
             Mpeg2Ps.__logger.warning(
-                'Invalid elementary_stream_map_buffer length')
+                'Invalid elementary_stream_map_buffer length.')
             return
         elementary_stream_map_stream = io.BytesIO(elementary_stream_map_buffer)
         while True:
@@ -607,7 +625,7 @@ class Mpeg2Ps:
                 break
             if len(elementary_stream_map_entry_buffer) != 4:
                 Mpeg2Ps.__logger.warning(
-                    'Invalid elementary_stream_map_entry_buffer length')
+                    'Invalid elementary_stream_map_entry_buffer length.')
                 return
             stream_type = elementary_stream_map_entry_buffer[0]
             if stream_type == 0x00:
@@ -622,7 +640,7 @@ class Mpeg2Ps:
                 elementary_stream_info_length)
             if len(elementary_stream_info_buffer) != elementary_stream_info_length:
                 Mpeg2Ps.__logger.warning(
-                    'Invalid elementary_stream_info_buffer length')
+                    'Invalid elementary_stream_info_buffer length.')
                 return
             elementary_stream_info_stream = io.BytesIO(
                 elementary_stream_info_buffer)
@@ -637,7 +655,7 @@ class Mpeg2Ps:
 
         crc32_buffer = program_stream_map_stream.read(4)
         if len(crc32_buffer) != 4:
-            Mpeg2Ps.__logger.warning('Invalid crc32_buffer length')
+            Mpeg2Ps.__logger.warning('Invalid crc32_buffer length.')
             return
         crc32 = int.from_bytes(crc32_buffer, byteorder='big')
 

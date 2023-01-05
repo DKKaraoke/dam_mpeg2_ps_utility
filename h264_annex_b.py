@@ -18,29 +18,27 @@ class H264AnnexB:
     @staticmethod
     def seek_nal_unit(stream: io.BufferedReader, nal_unit_type: int | None = None):
         zero_count = 0
-        packet_start_code_detected = False
         while True:
             buffer = stream.read(1)
             # End of stream
             if len(buffer) == 0:
                 break
             current_byte = int.from_bytes(buffer)
-            if not packet_start_code_detected:
-                if 2 <= zero_count and current_byte == 0x01:
-                    packet_start_code_detected = True
-            else:
-                current_forbidden_zero_bit = current_byte >> 7
-                if current_forbidden_zero_bit == 0x00:
-                    current_nal_unit_type = current_byte & 0x1f
-                    zero_count = min(zero_count, 3)
-                    if nal_unit_type is None:
+            if 2 <= zero_count and current_byte == 0x01:
+                buffer = stream.read(1)
+                # End of stream
+                if len(buffer) == 0:
+                    break
+                current_byte = int.from_bytes(buffer)
+                current_nal_unit_type = current_byte & 0x1f
+                zero_count = min(zero_count, 3)
+                if nal_unit_type is None:
+                    stream.seek(-(zero_count + 2), os.SEEK_CUR)
+                    return current_nal_unit_type
+                else:
+                    if current_nal_unit_type == nal_unit_type:
                         stream.seek(-(zero_count + 2), os.SEEK_CUR)
                         return current_nal_unit_type
-                    else:
-                        if current_nal_unit_type == nal_unit_type:
-                            stream.seek(-(zero_count + 2), os.SEEK_CUR)
-                            return current_nal_unit_type
-                    packet_start_code_detected = False
             # Count zero
             if current_byte == 0x00:
                 zero_count += 1
@@ -131,7 +129,32 @@ class H264AnnexB:
         return ebsp
 
     @staticmethod
+    def index_nal_unit(stream: io.BufferedReader):
+        index: list[tuple[int, int]] = []
+
+        last_position = -1
+        while True:
+            nal_unit_type = H264AnnexB.seek_nal_unit(stream)
+            if nal_unit_type is None:
+                break
+            position = stream.tell()
+            if last_position != -1:
+                index.append((last_position, position - last_position))
+            last_position = position
+            stream.seek(4, os.SEEK_CUR)
+
+        if last_position != -1:
+            position = stream.tell()
+            index.append((last_position, position - last_position))
+
+        return index
+
+    @staticmethod
     def parse_nal_unit(buffer: bytes):
+        if len(buffer) < 5:
+            H264AnnexB.__logger.warning('Invalid buffer length.')
+            return
+
         stream = io.BytesIO(buffer)
 
         # Prefix
@@ -142,10 +165,14 @@ class H264AnnexB:
             prefix_zero_count += 1
         is_start_code_long = False if prefix_zero_count <= 2 else True
         # Read header
-        header = int.from_bytes(stream.read(1))
+        header_buffer = stream.read(1)
+        if len(header_buffer) != 1:
+            H264AnnexB.__logger.warning('Invalid header_buffer length.')
+            return
+        header = int.from_bytes(header_buffer)
         forbidden_zero_bit = header >> 7
         if forbidden_zero_bit != 0x00:
-            H264AnnexB.__logger.warning('Invalid forbidden_zero_bit')
+            H264AnnexB.__logger.warning('Invalid forbidden_zero_bit.')
             return
         nal_ref_idc = (header >> 5) & 0x03
         nal_unit_type = header & 0x1f
