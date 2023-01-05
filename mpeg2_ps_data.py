@@ -8,7 +8,7 @@ class Mpeg2PesPacketType1(NamedTuple):
     PTS_DTS_flags: int
     pts: int
     dts: int
-    PES_packet_data_byte: bytes
+    # PES_packet_data_byte: bytes
 
 
 class Mpeg2PesPacketType2(NamedTuple):
