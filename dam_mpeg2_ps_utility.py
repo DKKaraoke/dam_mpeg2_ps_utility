@@ -226,63 +226,24 @@ class DamMpeg2PsUtility:
         return GopIndex(0xff, 0x01, stream_id, 0x0, 0x0, gops)
 
     @staticmethod
-    def __manipulate_stream(input_stream: io.BufferedReader, output_stream: io.BufferedWriter, old_stream_id: int, new_stream_id: int, codec: DamMpeg2PsCodec):
-        if old_stream_id == new_stream_id:
-            return
-
-        current_position = input_stream.tell()
-        while True:
-            packet_id = Mpeg2Ps.seek_packet(input_stream)
-            if packet_id is None:
-                break
-            packet_position = input_stream.tell()
-            copy_size = packet_position - current_position
-            input_stream.seek(current_position)
-            output_stream.write(input_stream.read(copy_size))
-
-            if packet_id == 0xbb:
-                # # Edit MPEG2-PS System Header
-                # Remove MPEG2-PS System Header
-                ps_system_header = Mpeg2Ps.read_ps_system_header(input_stream)
-                if ps_system_header is None:
-                    DamMpeg2PsUtility.__logger.warning(
-                        'Invalid ps_system_header')
-                    input_stream.seek(4, os.SEEK_CUR)
-                    continue
-                # DamMpeg2PsUtility.__write_program_stream_map(output_stream, new_stream_id, codec)
-                # for i in range(len(ps_system_header.P_STD_info)):
-                #     P_STD_info_entry = ps_system_header.P_STD_info[i]
-                #     if P_STD_info_entry.stream_id == old_stream_id:
-                #         ps_system_header.P_STD_info[i] = Mpeg2PsSystemHeaderPStdInfo(
-                #             new_stream_id, P_STD_info_entry.P_STD_buffer_bound_scale, P_STD_info_entry.P_STD_buffer_size_bound)
-                # ps_system_header_buffer = Mpeg2Ps.serialize_ps_system_header(
-                #     ps_system_header)
-                # output_stream.write(ps_system_header_buffer)
-                # DamMpeg2PsUtility.__write_program_stream_map(output_stream, new_stream_id, codec)
-            elif packet_id == old_stream_id:
-                # Edit packet stream_id
-                output_stream.write(Mpeg2Ps.PACKET_START_CODE)
-                output_stream.write(new_stream_id.to_bytes(1))
-                input_stream.seek(4, os.SEEK_CUR)
-
-            current_position = input_stream.tell()
-            if current_position == packet_position:
-                input_stream.seek(4, os.SEEK_CUR)
+    def __write_container_ps_pack_header(stream: io.BufferedWriter, header: Mpeg2PsPackHeader):
+        # ps_pack_header = Mpeg2PsPackHeader(0, 0, 20000, 0)
+        header = Mpeg2PsPackHeader(0, 0, header.program_mux_rate, 0)
+        header_buffer = Mpeg2Ps.serialize_ps_pack_header(header)
+        stream.write(header_buffer)
 
     @staticmethod
-    def __write_container_ps_pack_header(stream: io.BufferedWriter):
-        ps_pack_header = Mpeg2PsPackHeader(0, 0, 20000, 0)
-        ps_pack_header_buffer = Mpeg2Ps.serialize_ps_pack_header(
-            ps_pack_header)
-        stream.write(ps_pack_header_buffer)
-
-    @staticmethod
-    def __write_container_ps_system_header(stream: io.BufferedWriter, stream_id: int):
-        ps_system_header = Mpeg2PsSystemHeader(50000, 0, 0, 0, 0, 1, 1, 1, [
-                                               Mpeg2PsSystemHeaderPStdInfo(stream_id, 1, 3051)])
-        ps_system_header_buffer = Mpeg2Ps.serialize_ps_system_header(
-            ps_system_header)
-        stream.write(ps_system_header_buffer)
+    def __write_container_ps_system_header(stream: io.BufferedWriter, header: Mpeg2PsSystemHeader, old_stream_id: int, new_stream_id: int):
+        if old_stream_id != new_stream_id:
+            for i in range(len(header.P_STD_info)):
+                P_STD_info_entry = header.P_STD_info[i]
+                if P_STD_info_entry.stream_id == old_stream_id:
+                    header.P_STD_info[i] = Mpeg2PsSystemHeaderPStdInfo(
+                        new_stream_id, P_STD_info_entry.P_STD_buffer_bound_scale, P_STD_info_entry.P_STD_buffer_size_bound)
+        header = Mpeg2PsSystemHeader(
+            header.rate_bound, header.audio_bound, 0, 0, 0, 1, 1, 1, header.P_STD_info)
+        header_buffer = Mpeg2Ps.serialize_ps_system_header(header)
+        stream.write(header_buffer)
 
     @staticmethod
     def __write_program_stream_map(stream: io.BufferedWriter, stream_id: int, codec: DamMpeg2PsCodec):
@@ -301,41 +262,112 @@ class DamMpeg2PsUtility:
             elementary_stream_info = [Mpeg2HevcVideoDescriptor(
                 0x00, 0x00, 0x00, 0x00000000, 0x00, 0x00, 0x00, 0x00, 0x000000000000, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)]
         program_stream_map = Mpeg2PsProgramStreamMap(
-            0x01, 0x01, [], [Mpeg2PsElementaryStreamMapEntry(stream_type, stream_id, elementary_stream_info)], 0xffffffff)
+            0x01, 0x01, [], [Mpeg2PsElementaryStreamMapEntry(stream_type, stream_id, elementary_stream_info)])
         program_stream_map_buffer = Mpeg2Ps.serialize_program_stream_map(
             program_stream_map)
         stream.write(program_stream_map_buffer)
 
     @staticmethod
-    def __write_gop_index(stream: io.BufferedWriter, gop_index: GopIndex, position_offset: int | None = None):
-        if position_offset is None:
-            position_offset = stream.tell()
+    def __manipulate_stream(input_stream: io.BufferedReader, output_stream: io.BufferedWriter, old_stream_id: int, new_stream_id: int, codec: DamMpeg2PsCodec):
+        # Seek first MPEG2-PS PackHeader
+        packet_id = Mpeg2Ps.seek_packet(input_stream, 0xba)
+        if packet_id is None:
+            DamMpeg2PsUtility.__logger.warning(
+                'First MPEG2-PS Pack Header not found.')
+            return
+        ps_pack_header = Mpeg2Ps.read_ps_pack_header(input_stream)
+        if ps_pack_header is None:
+            DamMpeg2PsUtility.__logger.warning('Inavlid ps_pack_header.')
+            return
+        DamMpeg2PsUtility.__write_container_ps_pack_header(
+            output_stream, ps_pack_header)
+
+        # Seek first MPEG2-PS System Header
+        packet_id = Mpeg2Ps.seek_packet(input_stream, 0xbb)
+        if packet_id is None:
+            DamMpeg2PsUtility.__logger.warning(
+                'First MPEG2-PS System Header not found.')
+            return
+        ps_system_header = Mpeg2Ps.read_ps_system_header(input_stream)
+        if ps_system_header is None:
+            DamMpeg2PsUtility.__logger.warning('Inavlid ps_system_header.')
+            return
+        DamMpeg2PsUtility.__write_container_ps_system_header(
+            output_stream, ps_system_header, old_stream_id, new_stream_id)
+
+        DamMpeg2PsUtility.__write_program_stream_map(
+            output_stream, new_stream_id, codec)
+
+        # Write first stream header
+        ps_pack_header_buffer = Mpeg2Ps.serialize_ps_pack_header(
+            ps_pack_header)
+        output_stream.write(ps_pack_header_buffer)
+
+        current_position = input_stream.tell()
+        while True:
+            packet_id = Mpeg2Ps.seek_packet(input_stream)
+            if packet_id is None:
+                break
+            packet_position = input_stream.tell()
+            copy_size = packet_position - current_position
+            input_stream.seek(current_position)
+            output_stream.write(input_stream.read(copy_size))
+
+            if packet_id == 0xbb:
+                # Remove MPEG2-PS System Header
+                # Read and do nothing
+                ps_system_header = Mpeg2Ps.read_ps_system_header(input_stream)
+                if ps_system_header is None:
+                    DamMpeg2PsUtility.__logger.warning(
+                        'Invalid ps_system_header')
+                    input_stream.seek(4, os.SEEK_CUR)
+                    continue
+            elif old_stream_id != new_stream_id and packet_id == old_stream_id:
+                # Edit packet stream_id
+                output_stream.write(Mpeg2Ps.PACKET_START_CODE)
+                output_stream.write(new_stream_id.to_bytes(1))
+                input_stream.seek(4, os.SEEK_CUR)
+
+            current_position = input_stream.tell()
+            if current_position == packet_position:
+                input_stream.seek(4, os.SEEK_CUR)
+
+    @staticmethod
+    def __write_gop_index(input_stream: io.BufferedReader, output_stream: io.BufferedWriter, stream_id: int):
+        start_position = input_stream.tell()
+        gop_index = DamMpeg2PsUtility.index_gop(input_stream, stream_id)
+        input_stream.seek(start_position)
+
+        # Seek and read first MPEG2-PS Program Stream Map
+        packet_id = Mpeg2Ps.seek_packet(input_stream, 0xbc)
+        if packet_id is None:
+            DamMpeg2PsUtility.__logger.warning(
+                'First MPEG2-PS Program Stream Map not found.')
+            return
+        program_stream_map = Mpeg2Ps.read_program_stream_map(input_stream)
+        if program_stream_map is None:
+            DamMpeg2PsUtility.__logger.warning('Inavlid program_stream_map.')
+            return
+        # Copy container header
+        copy_size = input_stream.tell() - start_position
+        input_stream.seek(start_position)
+        output_stream.write(input_stream.read(copy_size))
+
         pes_packet_size = DamMpeg2PsUtility.__size_of_gop_index_pes_packet_bytes(
             gop_index)
         # Adjust MPEG2-PS Pack Header position
         for i in range(len(gop_index.gops)):
             gop = gop_index.gops[i]
             gop_index.gops[i] = GopIndexEntry(
-                position_offset + pes_packet_size + gop.ps_pack_header_position, gop.access_unit_size, gop.pts)
+                start_position + pes_packet_size + gop.ps_pack_header_position, gop.access_unit_size, gop.pts)
         gop_index_buffer = DamMpeg2PsUtility.__serialize_gop_index(gop_index)
         # Allow 0x000001 (Violation of standards), Do not emulation prevention
         pes_packet_buffer = Mpeg2Ps.serialize_pes_packet(
             0xbf, gop_index_buffer)
-        stream.write(pes_packet_buffer)
+        output_stream.write(pes_packet_buffer)
 
-    @staticmethod
-    def __write_container_header(input_stream: io.BufferedReader, output_stream: io.BufferedWriter, stream_id: int, codec: DamMpeg2PsCodec):
-        start_position = input_stream.tell()
-
-        DamMpeg2PsUtility.__write_container_ps_pack_header(output_stream)
-        DamMpeg2PsUtility.__write_container_ps_system_header(
-            output_stream, stream_id)
-        DamMpeg2PsUtility.__write_program_stream_map(
-            output_stream, stream_id, codec)
-        gop_index = DamMpeg2PsUtility.index_gop(input_stream, stream_id)
-        DamMpeg2PsUtility.__write_gop_index(output_stream, gop_index)
-
-        input_stream.seek(start_position)
+        # Copy stream
+        output_stream.write(input_stream.read())
 
     @staticmethod
     def compatibilize(input_stream: io.BufferedReader, output_stream: io.BufferedWriter, stream_id: int, codec: DamMpeg2PsCodec):
@@ -349,9 +381,8 @@ class DamMpeg2PsUtility:
             DamMpeg2PsUtility.__manipulate_stream(
                 input_stream, temp_stream, stream_id, new_stream_id, codec)
             temp_stream.seek(0)
-            DamMpeg2PsUtility.__write_container_header(
-                temp_stream, output_stream, new_stream_id, codec)
-            output_stream.write(temp_stream.read())
+            DamMpeg2PsUtility.__write_gop_index(
+                temp_stream, output_stream, new_stream_id)
 
 
 def main(argv=None):
