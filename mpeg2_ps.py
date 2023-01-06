@@ -41,11 +41,11 @@ class Mpeg2Ps:
                     # End of stream
                     break
                 if packet_id is None:
-                    stream.pos -= 32
+                    stream.bytepos -= 4
                     return current_byte
                 else:
                     if current_byte == packet_id:
-                        stream.pos -= 32
+                        stream.bytepos -= 4
                         return current_byte
             # Count zero
             if current_byte == 0x00:
