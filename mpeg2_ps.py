@@ -1,7 +1,7 @@
 import bitstring
 from customized_logger import getLogger
 import io
-from mpeg2_ps_data import Mpeg2PsProgramEnd, Mpeg2PesPacketType1, Mpeg2PesPacketType2, Mpeg2PesPacketType3, Mpeg2PsPackHeader, Mpeg2PsSystemHeaderPStdInfo,  Mpeg2PsSystemHeader, Mpeg2GenericDescriptor, Mpeg2AvcVideoDescriptor, Mpeg2AacAudioDescriptor, Mpeg2HevcVideoDescriptor, Mpeg2Descriptor, Mpeg2PsElementaryStreamMapEntry, Mpeg2PsProgramStreamMap, Mpeg2PsPacket
+from mpeg2_ps_data import Mpeg2PsProgramEnd, Mpeg2PesPacketType1, Mpeg2PesPacketType2, Mpeg2PesPacketType3, Mpeg2PesPacket, Mpeg2PsPackHeader, Mpeg2PsSystemHeaderPStdInfo,  Mpeg2PsSystemHeader, Mpeg2GenericDescriptor, Mpeg2AvcVideoDescriptor, Mpeg2AacAudioDescriptor, Mpeg2HevcVideoDescriptor, Mpeg2Descriptor, Mpeg2PsElementaryStreamMapEntry, Mpeg2PsProgramStreamMap, Mpeg2PsPacket
 import os
 
 
@@ -138,8 +138,79 @@ class Mpeg2Ps:
             return Mpeg2PesPacketType3(stream_id, PES_packet_length)
 
     @staticmethod
-    def serialize_pes_packet(stream_id: int, data: bytes):
-        return Mpeg2Ps.PACKET_START_CODE + stream_id.to_bytes(length=1) + len(data).to_bytes(length=2) + data
+    def write_pes_packet(stream: bitstring.BitStream, data: Mpeg2PesPacket):
+        stream.append(Mpeg2Ps.PACKET_START_CODE)
+        stream.append(bitstring.pack('uint:8', data.stream_id))
+        PES_packet_stream = bitstring.BitStream()
+        if isinstance(data, Mpeg2PesPacketType1):
+            PES_packet_stream.append(bitstring.BitArray(bin='10'))
+            PES_packet_stream.append(bitstring.pack(
+                'uint:2', data.PES_scrambling_control))
+            PES_packet_stream.append(
+                bitstring.pack('uint:1', data.PES_priority))
+            PES_packet_stream.append(bitstring.pack(
+                'uint:1', data.data_alignment_indicator))
+            PES_packet_stream.append(bitstring.pack('uint:1', data.copyright))
+            PES_packet_stream.append(bitstring.pack(
+                'uint:1', data.original_or_copy))
+            PES_packet_stream.append(
+                bitstring.pack('uint:2', data.PTS_DTS_flags))
+            PES_packet_stream.append(bitstring.pack('uint:1', data.ESCR_flag))
+            PES_packet_stream.append(
+                bitstring.pack('uint:1', data.ES_rate_flag))
+            PES_packet_stream.append(bitstring.pack(
+                'uint:1', data.DSM_trick_mode_flag))
+            PES_packet_stream.append(bitstring.pack(
+                'uint:1', data.additional_copy_info_flag))
+            PES_packet_stream.append(
+                bitstring.pack('uint:1', data.PES_CRC_flag))
+            PES_packet_stream.append(bitstring.pack(
+                'uint:1', data.PES_extension_flag))
+
+            PES_header_data_stream = bitstring.BitStream()
+            if data.PTS_DTS_flags == 0x02:
+                raw_PTS = 0x2100010001
+                raw_PTS |= (data.pts & (0x0007 << 30)) << 3
+                raw_PTS |= (data.pts & (0x7fff << 15)) << 2
+                raw_PTS |= (data.pts & 0x7fff) << 1
+                PES_header_data_stream.append(
+                    bitstring.pack('uintbe:40', raw_PTS))
+            elif data.PTS_DTS_flags == 0x03:
+                raw_PTS = 0x3100010001
+                raw_PTS |= (data.pts & (0x0007 << 30)) << 3
+                raw_PTS |= (data.pts & (0x7fff << 15)) << 2
+                raw_PTS |= (data.pts & 0x7fff) << 1
+                PES_header_data_stream.append(
+                    bitstring.pack('uintbe:40', raw_PTS))
+                raw_DTS = 0x1100010001
+                raw_DTS |= (data.dts & (0x0007 << 30)) << 3
+                raw_DTS |= (data.dts & (0x7fff << 15)) << 2
+                raw_DTS |= (data.dts & 0x7fff) << 1
+                PES_header_data_stream.append(
+                    bitstring.pack('uintbe:40', raw_DTS))
+            PES_header_data_buffer = PES_header_data_stream.tobytes()
+            PES_packet_stream.append(bitstring.pack(
+                'uint:8', len(PES_header_data_buffer)))
+            PES_packet_stream.append(PES_header_data_buffer)
+
+            PES_packet_stream.append(data.PES_packet_data)
+
+            PES_packet_buffer = PES_packet_stream.tobytes()
+            stream.append(bitstring.pack(
+                'uintbe:16', len(PES_packet_buffer)))
+            stream.append(PES_packet_buffer)
+
+            return
+        elif isinstance(data, Mpeg2PesPacketType2):
+            stream.append(bitstring.pack(
+                'uintbe:16', len(data.PES_packet_data)))
+            stream.append(data.PES_packet_data)
+            return
+        elif isinstance(data, Mpeg2PesPacketType3):
+            stream.append(bitstring.pack(
+                'uintbe:16', data.PES_packet_length))
+            for _ in range(data.PES_packet_length):
+                stream.append(b'\xff')
 
     @staticmethod
     def read_ps_pack_header(stream: bitstring.BitStream):
@@ -155,9 +226,9 @@ class Mpeg2Ps:
             system_clock_reference_raw >> 11) & 0x7fff
         system_clock_reference_extension = (
             system_clock_reference_raw >> 1) & 0x01ff
-        program_mux_rate: int = stream.read('uint:22')
+        program_mux_rate: int = stream.read('uintbe:24') >> 2
         # Skip marker_bits and Reserved
-        stream.pos += 7
+        stream.pos += 5
         pack_stuffing_length: int = stream.read('uint:3')
         return Mpeg2PsPackHeader(system_clock_reference_base, system_clock_reference_extension, program_mux_rate, pack_stuffing_length)
 
@@ -166,9 +237,9 @@ class Mpeg2Ps:
         stream.append(Mpeg2Ps.PACKET_START_CODE + b'\xba')
         system_clock_reference_raw = 0x440004000401
         system_clock_reference_raw |= (
-            data.system_clock_reference_base & 0xe0000000) << 13
+            data.system_clock_reference_base & (0x03 << 30)) << 13
         system_clock_reference_raw |= (
-            data.system_clock_reference_base & 0x7fff0000) << 12
+            data.system_clock_reference_base & (0x7fff << 15)) << 12
         system_clock_reference_raw |= (
             data.system_clock_reference_base & 0x7fff) << 11
         system_clock_reference_raw |= (
@@ -191,11 +262,7 @@ class Mpeg2Ps:
         header_length: int = stream.read('uintbe:16')
         header_stream = bitstring.BitStream(stream.read(8 * header_length))
 
-        # Skip marker_bit
-        header_stream.pos += 1
-        rate_bound: int = header_stream.read('uint:22')
-        # Skip marker_bit
-        header_stream.pos += 1
+        rate_bound: int = (header_stream.read('uintbe:24') >> 1) & 0x3fffff
         audio_bound: int = header_stream.read('uint:6')
         fixed_flag: int = header_stream.read('uint:1')
         CSPS_flag: int = header_stream.read('uint:1')
@@ -220,10 +287,9 @@ class Mpeg2Ps:
                 # P-STD info not found
                 header_stream.pos -= 8
                 break
-            # Skip '11'
-            header_stream.pos += 2
-            P_STD_buffer_bound_scale: int = header_stream.read('uint:1')
-            P_STD_buffer_size_bound: int = header_stream.read('uint:13')
+            temp: int = header_stream.read('uintbe:16')
+            P_STD_buffer_bound_scale = (temp >> 13) & 0x01
+            P_STD_buffer_size_bound = temp & 0x1fff
             P_STD_info.append(Mpeg2PsSystemHeaderPStdInfo(
                 stream_id, P_STD_buffer_bound_scale, P_STD_buffer_size_bound))
 
@@ -234,11 +300,8 @@ class Mpeg2Ps:
         stream.append(Mpeg2Ps.PACKET_START_CODE + b'\xbb')
 
         header_stream = bitstring.BitStream()
-        # marker_bit
-        header_stream.append(bitstring.pack('uint:1', 1))
-        header_stream.append(bitstring.pack('uintbe:22', data.rate_bound))
-        # marker_bit
-        header_stream.append(bitstring.pack('uint:1', 1))
+        header_stream.append(bitstring.pack(
+            'uintbe:24', 0x800001 | ((data.rate_bound & 0x3fffff) << 1)))
         header_stream.append(bitstring.pack('uint:6', data.audio_bound))
         header_stream.append(bitstring.pack('uint:1', data.fixed_flag))
         header_stream.append(bitstring.pack('uint:1', data.CSPS_flag))
@@ -255,12 +318,11 @@ class Mpeg2Ps:
         header_stream.append(bitstring.BitArray(bin='1111111'))
         for P_STD_info_entry in data.P_STD_info:
             header_stream.append(bitstring.pack('uint:8',
-                                                P_STD_info_entry.header_stream_id))
-            header_stream.append(bitstring.BitArray(bin='11'))
-            header_stream.append(bitstring.pack('uint:1',
-                                                P_STD_info_entry.P_STD_buffer_bound_scale))
-            header_stream.append(bitstring.pack('uintbe:13',
-                                                P_STD_info_entry.P_STD_buffer_size_bound))
+                                                P_STD_info_entry.stream_id))
+            temp = 0xc000
+            temp |= (P_STD_info_entry.P_STD_buffer_bound_scale & 0x01) << 13
+            temp |= P_STD_info_entry.P_STD_buffer_size_bound & 0x1fff
+            header_stream.append(bitstring.pack('uintbe:16', temp))
 
         header_bytes = header_stream.tobytes()
         stream.append(bitstring.pack('uintbe:16', len(header_bytes)))
@@ -458,7 +520,7 @@ class Mpeg2Ps:
         map_stream_id: int = stream.read('uint:8')
         if map_stream_id != 0xbc:
             raise RuntimeError('Invalid map_stream_id.')
-        program_stream_map_length: int = stream.read('uint:16')
+        program_stream_map_length: int = stream.read('uintbe:16')
         program_stream_map_stream = bitstring.BitStream(
             stream.read(8 * program_stream_map_length))
 
@@ -482,7 +544,7 @@ class Mpeg2Ps:
 
         elementary_stream_map: list[Mpeg2PsElementaryStreamMapEntry] = []
         elementary_stream_map_length: int = program_stream_map_stream.read(
-            'uint:16')
+            'uintbe:16')
         elementary_stream_map_stream = bitstring.BitStream(
             program_stream_map_stream.read(8 * elementary_stream_map_length))
         while True:
@@ -559,14 +621,12 @@ class Mpeg2Ps:
 
         program_stream_map_buffer = program_stream_map_stream.tobytes()
         stream.append(bitstring.pack(
-            'uintbe:16', len(program_stream_map_buffer)))
+            'uintbe:16', len(program_stream_map_buffer) + 4))
         stream.append(program_stream_map_buffer)
 
         buffer = stream.tobytes()
         crc32 = Mpeg2Ps.crc32(buffer)
         stream.append(bitstring.pack('uintbe:32', crc32))
-
-        return buffer
 
     @staticmethod
     def read_ps_packet(stream: bitstring.BitStream) -> Mpeg2PsPacket | None:
@@ -585,3 +645,16 @@ class Mpeg2Ps:
             return Mpeg2Ps.read_program_stream_map(stream)
         else:
             return Mpeg2Ps.read_pes_packet(stream)
+
+    @staticmethod
+    def write_ps_packet(stream: bitstring.BitStream, data: Mpeg2PsPacket):
+        if isinstance(data, Mpeg2PsProgramEnd):
+            stream.append(b'\x00\x00\x01\xb9')
+        elif isinstance(data, Mpeg2PsPackHeader):
+            Mpeg2Ps.write_ps_pack_header(stream, data)
+        elif isinstance(data, Mpeg2PsSystemHeader):
+            Mpeg2Ps.write_ps_system_header(stream, data)
+        elif isinstance(data, Mpeg2PsProgramStreamMap):
+            Mpeg2Ps.write_program_stream_map(stream, data)
+        elif isinstance(data, Mpeg2PesPacket):
+            Mpeg2Ps.write_pes_packet(stream, data)

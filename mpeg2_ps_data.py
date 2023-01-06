@@ -1,11 +1,24 @@
 from typing import NamedTuple, Union
 
 
+class Mpeg2PsProgramEnd(NamedTuple):
+    pass
+
+
 class Mpeg2PesPacketType1(NamedTuple):
     stream_id: int
-    PES_packet_length: int
-    PES_header_data_length: int
+    PES_scrambling_control: int
+    PES_priority: int
+    data_alignment_indicator: int
+    copyright: int
+    original_or_copy: int
     PTS_DTS_flags: int
+    ESCR_flag: int
+    ES_rate_flag: int
+    DSM_trick_mode_flag: int
+    additional_copy_info_flag: int
+    PES_CRC_flag: int
+    PES_extension_flag: int
     pts: int
     dts: int
     PES_packet_data: bytes
@@ -13,7 +26,7 @@ class Mpeg2PesPacketType1(NamedTuple):
 
 class Mpeg2PesPacketType2(NamedTuple):
     stream_id: int
-    data: bytes
+    PES_packet_data: bytes
 
 
 class Mpeg2PesPacketType3(NamedTuple):
@@ -112,3 +125,7 @@ class Mpeg2PsProgramStreamMap(NamedTuple):
     program_stream_map_version: int
     program_stream_info: list[Mpeg2Descriptor]
     elementary_stream_map: list[Mpeg2PsElementaryStreamMapEntry]
+
+
+Mpeg2PsPacket = Union[Mpeg2PsProgramEnd, Mpeg2PsPackHeader,
+                      Mpeg2PsSystemHeader, Mpeg2PsProgramStreamMap, Mpeg2PesPacket]
