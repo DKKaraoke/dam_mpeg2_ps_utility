@@ -1,8 +1,8 @@
+import bitstring
 from collections import namedtuple
 from h264_annex_b_data import H264NalUnit
 import io
 from logging import getLogger, Formatter, StreamHandler, DEBUG
-import os
 
 
 class H264AnnexB:
@@ -16,28 +16,29 @@ class H264AnnexB:
     __logger = getLogger('H264AnnexB')
 
     @staticmethod
-    def seek_nal_unit(stream: io.BufferedReader, nal_unit_type: int | None = None):
+    def seek_nal_unit(stream: bitstring.BitStream, nal_unit_type: int | None = None):
         zero_count = 0
         while True:
-            buffer = stream.read(1)
-            # End of stream
-            if len(buffer) == 0:
-                break
-            current_byte = int.from_bytes(buffer)
-            if 2 <= zero_count and current_byte == 0x01:
-                buffer = stream.read(1)
+            current_byte: int
+            try:
+                current_byte = stream.read('uint:8')
+            except bitstring.ReadError:
                 # End of stream
-                if len(buffer) == 0:
+                break
+            if 2 <= zero_count and current_byte == 0x01:
+                try:
+                    current_byte = stream.read('uint:8')
+                except bitstring.ReadError:
+                    # End of stream
                     break
-                current_byte = int.from_bytes(buffer)
                 current_nal_unit_type = current_byte & 0x1f
                 zero_count = min(zero_count, 3)
                 if nal_unit_type is None:
-                    stream.seek(-(zero_count + 2), os.SEEK_CUR)
+                    stream.pos -= zero_count + 2
                     return current_nal_unit_type
                 else:
                     if current_nal_unit_type == nal_unit_type:
-                        stream.seek(-(zero_count + 2), os.SEEK_CUR)
+                        stream.pos -= zero_count + 2
                         return current_nal_unit_type
             # Count zero
             if current_byte == 0x00:
@@ -129,7 +130,7 @@ class H264AnnexB:
         return ebsp
 
     @staticmethod
-    def index_nal_unit(stream: io.BufferedReader):
+    def index_nal_unit(stream: bitstring.BitStream):
         index: list[tuple[int, int]] = []
 
         last_position = -1
@@ -137,15 +138,13 @@ class H264AnnexB:
             nal_unit_type = H264AnnexB.seek_nal_unit(stream)
             if nal_unit_type is None:
                 break
-            position = stream.tell()
             if last_position != -1:
-                index.append((last_position, position - last_position))
-            last_position = position
-            stream.seek(4, os.SEEK_CUR)
+                index.append((last_position, stream.bytepos - last_position))
+            last_position = stream.bytepos
+            stream.bytepos += 4
 
         if last_position != -1:
-            position = stream.tell()
-            index.append((last_position, position - last_position))
+            index.append((last_position, stream.bytepos - last_position))
 
         return index
 
