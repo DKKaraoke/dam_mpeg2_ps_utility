@@ -33,7 +33,7 @@ class DamMpeg2Ps:
         stream = bitstring.BitStream()
         stream += bitstring.pack('uint:8, uint:8, uint:8, uint:4, uint:4, uintbe:16',
                                  gop_index.sub_stream_id, gop_index.version, gop_index.stream_id,
-                                 gop_index.page_number, gop_index.page_count, len(gop_index.gops))
+                                 gop_index.page_number, gop_index.page_count, len(gop_index.gops) - 1)
         for gop in gop_index.gops:
             stream += bitstring.pack('uintbe:40, uintbe:24, uintbe:32',
                                      gop.ps_pack_header_position, gop.access_unit_size, gop.pts)
@@ -48,7 +48,7 @@ class DamMpeg2Ps:
         stream_id: int = stream.read('uint:8')
         page_number: int = stream.read('uint:4')
         page_count: int = stream.read('uint:4')
-        gop_count: int = stream.read('uintbe:16')
+        gop_count: int = stream.read('uintbe:16') + 1
         for _ in range(gop_count):
             ps_pack_header_position: int = stream.read('uintbe:40')
             access_unit_size: int = stream.read('uintbe:24')
