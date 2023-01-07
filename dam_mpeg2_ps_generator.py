@@ -74,7 +74,7 @@ class DamMpeg2PsGenerator:
 
         picture_count = 0
         for sequence in sequences:
-            access_unit_position = temp_stream.bytepos
+            access_unit_position = len(temp_stream)
 
             presentation_time = picture_count / frame_rate
             SCR_base = int(
@@ -121,7 +121,7 @@ class DamMpeg2PsGenerator:
                     access_unit_buffer = access_unit_buffer[pes_packet_data_buffer_length_limit:]
                     first_pes_packet_of_nal_unit = False
 
-            access_unit_size = temp_stream.bytepos = access_unit_position
+            access_unit_size = len(temp_stream) - access_unit_position
 
             gops.append(GopIndexEntry(
                 access_unit_position, access_unit_size, SCR_base))
