@@ -8,6 +8,7 @@ class Mpeg2Ps:
     """MPEG2-PS
     """
 
+    SYSTEM_CLOCK_FREQUENCY = 27000000
     PACKET_START_CODE = b'\x00\x00\x01'
 
     __logger = getLogger('Mpeg2Ps')
@@ -52,33 +53,28 @@ class Mpeg2Ps:
             else:
                 zero_count = 0
 
-    # @staticmethod
-    # def index_packets(stream: io.BufferedReader, packet_id: int | None = None):
-    #     start_position = stream.tell()
+    @staticmethod
+    def index_packets(stream: bitstring.BitStream, packet_id: int | None = None):
+        index: list[tuple[int, int]] = []
 
-    #     index: list[tuple[int, int]] = []
-    #     current_start = -1
-    #     while True:
-    #         packet_id = Mpeg2Ps.seek_packet(stream, packet_id)
-    #         position = stream.tell()
-    #         if packet_id is None:
-    #             break
-    #         stream.seek(4, os.SEEK_CUR)
-    #         if current_start != -1:
-    #             size = position - current_start
-    #             index.append((current_start, size))
-    #         current_start = position
-    #     if current_start != -1:
-    #         size = len(stream.read()) - current_start
-    #         index.append((current_start, size))
+        last_position = -1
+        while True:
+            packet_id = Mpeg2Ps.seek_packet(stream, packet_id)
+            if packet_id is None:
+                break
+            if last_position != -1:
+                index.append((last_position, stream.bytepos - last_position))
+            last_position = stream.bytepos
+            stream.bytepos += 4
 
-    #     stream.seek(start_position)
+        if last_position != -1:
+            index.append((last_position, stream.bytepos - last_position))
 
-    #     return index
+        return index
 
     @staticmethod
     def peek_packet_id(stream: bitstring.BitStream):
-        buffer: bytes = stream.peek('bytes:4').bytes
+        buffer: bytes = stream.peek('bytes:4')
         if buffer[0:3] != Mpeg2Ps.PACKET_START_CODE:
             Mpeg2Ps.__logger.warning('Invalid packet start code.')
             return
