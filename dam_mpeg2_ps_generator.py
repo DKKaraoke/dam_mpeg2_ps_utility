@@ -122,11 +122,16 @@ class DamMpeg2PsGenerator:
                     first_pes_packet_of_nal_unit = False
 
             access_unit_size = len(temp_stream) - access_unit_position
-
             gops.append(GopIndexEntry(
                 access_unit_position, access_unit_size, SCR_base))
 
         Mpeg2Ps.write_ps_packet(temp_stream, Mpeg2PsProgramEnd())
+        # Add GOP index entry of Program end
+        access_unit_position = len(temp_stream)
+        presentation_time = picture_count / frame_rate + 0.5
+        SCR_base = int(
+            (Mpeg2Ps.SYSTEM_CLOCK_FREQUENCY * presentation_time) / 300)
+        gops.append(GopIndexEntry(access_unit_position, 0, SCR_base))
 
         DamMpeg2Ps.write_gop_index(
             temp_stream, stream, GopIndex(0xff, 0x01, 0xe0, 0x0, 0x0, gops))
