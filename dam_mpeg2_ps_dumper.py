@@ -3,15 +3,8 @@
 
 import argparse
 import bitstring
-import io
 
-from dam_mpeg2_ps_utility.customized_logger import getLogger
-from dam_mpeg2_ps_utility.dam_mpeg2_ps import DamMpeg2Ps, DamMpeg2PsCodec
-from dam_mpeg2_ps_utility.dam_mpeg2_ps_generator_data import GopIndexEntry, GopIndex
-from dam_mpeg2_ps_utility.h264_annex_b import H264AnnexB
-from dam_mpeg2_ps_utility.h264_annex_b_data import H264NalUnit
-from dam_mpeg2_ps_utility.mpeg2_ps import Mpeg2Ps
-from dam_mpeg2_ps_utility.mpeg2_ps_data import Mpeg2PsProgramEnd, Mpeg2PesPacketType1, Mpeg2PsPackHeader
+from dam_mpeg2_ps_utility.dam_mpeg2_ps import DamMpeg2Ps
 
 
 def main(argv=None):
