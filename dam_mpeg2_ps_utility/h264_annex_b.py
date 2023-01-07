@@ -1,5 +1,5 @@
 from collections import namedtuple
-from h264_annex_b_data import H264NalUnit
+from dam_mpeg2_ps_utility.h264_annex_b_data import H264NalUnit
 import io
 from logging import getLogger, Formatter, StreamHandler, DEBUG
 import os

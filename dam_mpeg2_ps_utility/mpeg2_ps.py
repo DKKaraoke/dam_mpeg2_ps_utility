@@ -1,7 +1,7 @@
 import bitstring
-from customized_logger import getLogger
+from dam_mpeg2_ps_utility.customized_logger import getLogger
 import io
-from mpeg2_ps_data import Mpeg2PsProgramEnd, Mpeg2PesPacketType1, Mpeg2PesPacketType2, Mpeg2PesPacketType3, Mpeg2PesPacket, Mpeg2PsPackHeader, Mpeg2PsSystemHeaderPStdInfo,  Mpeg2PsSystemHeader, Mpeg2GenericDescriptor, Mpeg2AvcVideoDescriptor, Mpeg2AacAudioDescriptor, Mpeg2HevcVideoDescriptor, Mpeg2Descriptor, Mpeg2PsElementaryStreamMapEntry, Mpeg2PsProgramStreamMap, Mpeg2PsPacket
+from dam_mpeg2_ps_utility.mpeg2_ps_data import Mpeg2PsProgramEnd, Mpeg2PesPacketType1, Mpeg2PesPacketType2, Mpeg2PesPacketType3, Mpeg2PesPacket, Mpeg2PsPackHeader, Mpeg2PsSystemHeaderPStdInfo,  Mpeg2PsSystemHeader, Mpeg2GenericDescriptor, Mpeg2AvcVideoDescriptor, Mpeg2AacAudioDescriptor, Mpeg2HevcVideoDescriptor, Mpeg2Descriptor, Mpeg2PsElementaryStreamMapEntry, Mpeg2PsProgramStreamMap, Mpeg2PsPacket
 
 
 class Mpeg2Ps:
