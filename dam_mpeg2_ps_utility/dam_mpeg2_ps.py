@@ -40,7 +40,7 @@ class DamMpeg2Ps:
         return stream.tobytes()
 
     @staticmethod
-    def __read_gop_index(stream: bitstring.BitStream):
+    def read_gop_index(stream: bitstring.BitStream):
         gops: list[GopIndexEntry] = []
 
         sub_stream_id: int = stream.read('uint:8')
