@@ -23,10 +23,10 @@ def main(argv=None):
             ps_packet = Mpeg2Ps.read_ps_packet(input_stream)
             if ps_packet is None:
                 break
-            
+
             if args.print_packets:
                 print(ps_packet)
-            
+
             if isinstance(ps_packet, Mpeg2PesPacketType2) and ps_packet.stream_id == 0xbf:
                 data_stream = bitstring.BitStream(ps_packet.PES_packet_data)
                 gop_index = DamMpeg2Ps.read_gop_index(data_stream)
