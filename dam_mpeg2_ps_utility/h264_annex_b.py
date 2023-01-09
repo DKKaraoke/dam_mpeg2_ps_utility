@@ -23,13 +23,13 @@ class H264AnnexB:
             # End of stream
             if len(buffer) == 0:
                 break
-            current_byte = int.from_bytes(buffer)
+            current_byte = int.from_bytes(buffer, byteorder='big')
             if 2 <= zero_count and current_byte == 0x01:
                 buffer = stream.read(1)
                 # End of stream
                 if len(buffer) == 0:
                     break
-                current_byte = int.from_bytes(buffer)
+                current_byte = int.from_bytes(buffer, byteorder='big')
                 current_nal_unit_type = current_byte & 0x1f
                 zero_count = min(zero_count, 3)
                 if nal_unit_type is None:
@@ -160,7 +160,7 @@ class H264AnnexB:
         # Prefix
         prefix_zero_count = 0
         for _ in range(4):
-            if int.from_bytes(stream.read(1)) == 0x01:
+            if int.from_bytes(stream.read(1), byteorder='big') == 0x01:
                 break
             prefix_zero_count += 1
         is_start_code_long = False if prefix_zero_count <= 2 else True
@@ -169,7 +169,7 @@ class H264AnnexB:
         if len(header_buffer) != 1:
             H264AnnexB.__logger.warning('Invalid header_buffer length.')
             return
-        header = int.from_bytes(header_buffer)
+        header = int.from_bytes(header_buffer, byteorder='big')
         forbidden_zero_bit = header >> 7
         if forbidden_zero_bit != 0x00:
             H264AnnexB.__logger.warning('Invalid forbidden_zero_bit.')
@@ -191,4 +191,4 @@ class H264AnnexB:
 
         ebsp = H264AnnexB.__rbsp_to_ebsp(nal_unit.rbsp)
 
-        return prefix + header.to_bytes(length=1) + ebsp
+        return prefix + header.to_bytes(length=1, byteorder='big') + ebsp
