@@ -24,6 +24,7 @@ def main(argv=None):
             if args.print_packets:
                 print(ps_packet)
 
+            # GOP index packet
             if (
                 isinstance(ps_packet, Mpeg2PesPacketType2)
                 and ps_packet.stream_id == 0xBF
