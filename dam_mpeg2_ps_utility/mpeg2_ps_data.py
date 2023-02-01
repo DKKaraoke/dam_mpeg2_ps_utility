@@ -34,8 +34,7 @@ class Mpeg2PesPacketType3(NamedTuple):
     PES_packet_length: int
 
 
-Mpeg2PesPacket = Union[Mpeg2PesPacketType1,
-                       Mpeg2PesPacketType2, Mpeg2PesPacketType3]
+Mpeg2PesPacket = Union[Mpeg2PesPacketType1, Mpeg2PesPacketType2, Mpeg2PesPacketType3]
 
 
 class Mpeg2PsPackHeader(NamedTuple):
@@ -110,8 +109,12 @@ class Mpeg2HevcVideoDescriptor(NamedTuple):
     temporal_id_max: int
 
 
-Mpeg2Descriptor = Union[Mpeg2GenericDescriptor, Mpeg2AvcVideoDescriptor,
-                        Mpeg2AacAudioDescriptor, Mpeg2HevcVideoDescriptor]
+Mpeg2Descriptor = Union[
+    Mpeg2GenericDescriptor,
+    Mpeg2AvcVideoDescriptor,
+    Mpeg2AacAudioDescriptor,
+    Mpeg2HevcVideoDescriptor,
+]
 
 
 class Mpeg2PsElementaryStreamMapEntry(NamedTuple):
@@ -127,5 +130,10 @@ class Mpeg2PsProgramStreamMap(NamedTuple):
     elementary_stream_map: list[Mpeg2PsElementaryStreamMapEntry]
 
 
-Mpeg2PsPacket = Union[Mpeg2PsProgramEnd, Mpeg2PsPackHeader,
-                      Mpeg2PsSystemHeader, Mpeg2PsProgramStreamMap, Mpeg2PesPacket]
+Mpeg2PsPacket = Union[
+    Mpeg2PsProgramEnd,
+    Mpeg2PsPackHeader,
+    Mpeg2PsSystemHeader,
+    Mpeg2PsProgramStreamMap,
+    Mpeg2PesPacket,
+]

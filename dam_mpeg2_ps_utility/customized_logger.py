@@ -7,7 +7,10 @@ def getLogger(name: str):
     logger.setLevel(DEBUG)
     log_handler = StreamHandler(sys.stdout)
     log_handler.setLevel(DEBUG)
-    log_handler.setFormatter(Formatter(
-        "[%(asctime)s] %(levelname)s [%(name)s.%(funcName)s:%(lineno)d] %(message)s"))
+    log_handler.setFormatter(
+        Formatter(
+            "[%(asctime)s] %(levelname)s [%(name)s.%(funcName)s:%(lineno)d] %(message)s"
+        )
+    )
     logger.addHandler(log_handler)
     return logger

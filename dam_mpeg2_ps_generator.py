@@ -12,20 +12,22 @@ from dam_mpeg2_ps_utility.dam_mpeg2_ps_generator_data import GopIndexEntry, GopI
 from dam_mpeg2_ps_utility.h264_annex_b import H264AnnexB
 from dam_mpeg2_ps_utility.h264_annex_b_data import H264NalUnit
 from dam_mpeg2_ps_utility.mpeg2_ps import Mpeg2Ps
-from dam_mpeg2_ps_utility.mpeg2_ps_data import Mpeg2PsProgramEnd, Mpeg2PesPacketType1, Mpeg2PsPackHeader
+from dam_mpeg2_ps_utility.mpeg2_ps_data import (
+    Mpeg2PsProgramEnd,
+    Mpeg2PesPacketType1,
+    Mpeg2PsPackHeader,
+)
 
 
 class DamMpeg2PsGenerator:
-    """DAM compatible MPEG2-PS Generator
-    """
+    """DAM compatible MPEG2-PS Generator"""
 
     nal_units: list[H264NalUnit] = []
 
-    __logger = getLogger('DamMpeg2PsGenerator')
+    __logger = getLogger("DamMpeg2PsGenerator")
 
     def __init__(self):
-        """Constructor
-        """
+        """Constructor"""
 
     def load_h264_es(self, stream: io.BufferedReader):
         self.nal_units.clear()
@@ -39,7 +41,9 @@ class DamMpeg2PsGenerator:
                 continue
             self.nal_units.append(nal_unit)
 
-    def write_mpeg_ps(self, stream: bitstring.BitStream, codec: DamMpeg2PsCodec, frame_rate: Decimal):
+    def write_mpeg_ps(
+        self, stream: bitstring.BitStream, codec: DamMpeg2PsCodec, frame_rate: Decimal
+    ):
         temp_stream = bitstring.BitStream()
 
         DamMpeg2Ps.write_container_header(temp_stream, codec)
@@ -78,25 +82,21 @@ class DamMpeg2PsGenerator:
             access_unit_position = len(temp_stream)
 
             presentation_time = picture_count / frame_rate
-            SCR_base = int(
-                (Mpeg2Ps.SYSTEM_CLOCK_FREQUENCY * presentation_time) / 300)
-            SCR_ext = int(
-                (Mpeg2Ps.SYSTEM_CLOCK_FREQUENCY * presentation_time) % 300)
+            SCR_base = int((Mpeg2Ps.SYSTEM_CLOCK_FREQUENCY * presentation_time) / 300)
+            SCR_ext = int((Mpeg2Ps.SYSTEM_CLOCK_FREQUENCY * presentation_time) % 300)
             ps_pack_header = Mpeg2PsPackHeader(SCR_base, SCR_ext, 20000, 0)
             Mpeg2Ps.write_ps_pack_header(temp_stream, ps_pack_header)
 
             for access_unit in sequence:
                 presentation_time = picture_count / frame_rate
-                pts = int((Mpeg2Ps.SYSTEM_CLOCK_FREQUENCY *
-                          presentation_time) / 300)
+                pts = int((Mpeg2Ps.SYSTEM_CLOCK_FREQUENCY * presentation_time) / 300)
                 dts = None
 
-                access_unit_buffer = b''
+                access_unit_buffer = b""
                 for nal_unit in access_unit:
                     if nal_unit.nal_unit_type == 0x01 or nal_unit.nal_unit_type == 0x05:
                         picture_count += 1
-                    access_unit_buffer += H264AnnexB.serialize_nal_unit(
-                        nal_unit)
+                    access_unit_buffer += H264AnnexB.serialize_nal_unit(nal_unit)
 
                 pes_packet_data_buffer_length_limit: int
                 if pts is None:
@@ -114,70 +114,91 @@ class DamMpeg2PsGenerator:
                     if not first_pes_packet_of_nal_unit:
                         PTS_DTS_flags = 0
                         pes_packet_data_buffer_length_limit = 65535 - 3
-                    pes_packet_data_buffer = access_unit_buffer[0:
-                                                                pes_packet_data_buffer_length_limit]
+                    pes_packet_data_buffer = access_unit_buffer[
+                        0:pes_packet_data_buffer_length_limit
+                    ]
                     pes_packet = Mpeg2PesPacketType1(
-                        0xe0, 0, 0, 0, 0, 0, PTS_DTS_flags, 0, 0, 0, 0, 0, 0, pts, dts, pes_packet_data_buffer)
+                        0xE0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        PTS_DTS_flags,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        0,
+                        pts,
+                        dts,
+                        pes_packet_data_buffer,
+                    )
                     Mpeg2Ps.write_pes_packet(temp_stream, pes_packet)
-                    access_unit_buffer = access_unit_buffer[pes_packet_data_buffer_length_limit:]
+                    access_unit_buffer = access_unit_buffer[
+                        pes_packet_data_buffer_length_limit:
+                    ]
                     first_pes_packet_of_nal_unit = False
 
             access_unit_size = len(temp_stream) - access_unit_position
-            gops.append(GopIndexEntry(
-                access_unit_position, access_unit_size, SCR_base))
+            gops.append(GopIndexEntry(access_unit_position, access_unit_size, SCR_base))
             DamMpeg2PsGenerator.__logger.debug(
-                f'GOP index entry added. access_unit_position={access_unit_position}, access_unit_size={access_unit_size}, pts={SCR_base}, pts_msec={SCR_base / 90}')
+                f"GOP index entry added. access_unit_position={access_unit_position}, access_unit_size={access_unit_size}, pts={SCR_base}, pts_msec={SCR_base / 90}"
+            )
 
         Mpeg2Ps.write_ps_packet(temp_stream, Mpeg2PsProgramEnd())
         # Add GOP index entry of Program end
         access_unit_position = len(temp_stream)
         presentation_time = picture_count / frame_rate
-        SCR_base = int(
-            (Mpeg2Ps.SYSTEM_CLOCK_FREQUENCY * presentation_time) / 300)
+        SCR_base = int((Mpeg2Ps.SYSTEM_CLOCK_FREQUENCY * presentation_time) / 300)
         gops.append(GopIndexEntry(access_unit_position, 0, SCR_base))
         DamMpeg2PsGenerator.__logger.debug(
-            f'GOP index entry (Program end) added. access_unit_position={access_unit_position}, access_unit_size=0, pts={SCR_base}, pts_msec={SCR_base / 90}')
+            f"GOP index entry (Program end) added. access_unit_position={access_unit_position}, access_unit_size=0, pts={SCR_base}, pts_msec={SCR_base / 90}"
+        )
 
         DamMpeg2Ps.write_gop_index(
-            temp_stream, stream, GopIndex(0xff, 0x01, 0xe0, 0x0, 0x0, gops))
+            temp_stream, stream, GopIndex(0xFF, 0x01, 0xE0, 0x0, 0x0, gops)
+        )
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(
-        description='DAM compatible MPEG2-PS Generator')
+    parser = argparse.ArgumentParser(description="DAM compatible MPEG2-PS Generator")
+    parser.add_argument("input_path", help="Input H.264-ES file path")
+    parser.add_argument("--input_codec", choices=["avc", "hevc"], default="avc")
     parser.add_argument(
-        "input_path", help='Input H.264-ES file path')
-    parser.add_argument(
-        '--input_codec', choices=['avc', 'hevc'], default='avc')
-    parser.add_argument('--frame_rate',
-                        choices=['24000/1001', '24', '30000/1001', '30', '60000/1001', '60'], default='30000/1001')
-    parser.add_argument(
-        'output_path', help='DAM compatible MPEG2-PS output file path')
+        "--frame_rate",
+        choices=["24000/1001", "24", "30000/1001", "30", "60000/1001", "60"],
+        default="30000/1001",
+    )
+    parser.add_argument("output_path", help="DAM compatible MPEG2-PS output file path")
     args = parser.parse_args()
 
     codec = DamMpeg2PsCodec.UNDEFINED
-    if args.input_codec == 'avc':
+    if args.input_codec == "avc":
         codec = DamMpeg2PsCodec.AVC_VIDEO
-    elif args.input_codec == 'hevc':
+    elif args.input_codec == "hevc":
         codec = DamMpeg2PsCodec.HEVC_VIDEO
 
     frame_rate = Decimal(30000) / 1001
-    if args.frame_rate == '24000/1001':
+    if args.frame_rate == "24000/1001":
         frame_rate = Decimal(24000) / 1001
-    elif args.frame_rate == '24':
+    elif args.frame_rate == "24":
         frame_rate = Decimal(30)
-    elif args.frame_rate == '30000/1001':
+    elif args.frame_rate == "30000/1001":
         frame_rate = Decimal(30000) / 1001
-    elif args.frame_rate == '30':
+    elif args.frame_rate == "30":
         frame_rate = Decimal(30)
-    elif args.frame_rate == '60000/1001':
+    elif args.frame_rate == "60000/1001":
         frame_rate = Decimal(60000) / 1001
-    elif args.frame_rate == '60':
+    elif args.frame_rate == "60":
         frame_rate = Decimal(60)
 
     generator = DamMpeg2PsGenerator()
 
-    with open(args.input_path, 'rb') as input_file, open(args.output_path, 'wb') as output_file:
+    with open(args.input_path, "rb") as input_file, open(
+        args.output_path, "wb"
+    ) as output_file:
         generator.load_h264_es(input_file)
         temp_stream = bitstring.BitStream()
         generator.write_mpeg_ps(temp_stream, codec, frame_rate)

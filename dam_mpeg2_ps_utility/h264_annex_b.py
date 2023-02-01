@@ -6,14 +6,13 @@ import os
 
 
 class H264AnnexB:
-    """H.264 Annex B
-    """
+    """H.264 Annex B"""
 
-    __NAL_UNIT_START_CODE = b'\x00\x00\x01'
-    __NAL_UNIT_START_CODE_LONG = b'\x00\x00\x00\x01'
-    __EBSP_ESCAPE_START_CODE = b'\x00\x00\x03'
+    __NAL_UNIT_START_CODE = b"\x00\x00\x01"
+    __NAL_UNIT_START_CODE_LONG = b"\x00\x00\x00\x01"
+    __EBSP_ESCAPE_START_CODE = b"\x00\x00\x03"
 
-    __logger = getLogger('H264AnnexB')
+    __logger = getLogger("H264AnnexB")
 
     @staticmethod
     def seek_nal_unit(stream: io.BufferedReader, nal_unit_type: int | None = None):
@@ -23,14 +22,14 @@ class H264AnnexB:
             # End of stream
             if len(buffer) == 0:
                 break
-            current_byte = int.from_bytes(buffer, byteorder='big')
+            current_byte = int.from_bytes(buffer, byteorder="big")
             if 2 <= zero_count and current_byte == 0x01:
                 buffer = stream.read(1)
                 # End of stream
                 if len(buffer) == 0:
                     break
-                current_byte = int.from_bytes(buffer, byteorder='big')
-                current_nal_unit_type = current_byte & 0x1f
+                current_byte = int.from_bytes(buffer, byteorder="big")
+                current_nal_unit_type = current_byte & 0x1F
                 zero_count = min(zero_count, 3)
                 if nal_unit_type is None:
                     stream.seek(-(zero_count + 2), os.SEEK_CUR)
@@ -47,8 +46,7 @@ class H264AnnexB:
 
     @staticmethod
     def __find_ebsp_escaped(buffer: bytes, start=0):
-        position = buffer.find(
-            H264AnnexB.__EBSP_ESCAPE_START_CODE, start)
+        position = buffer.find(H264AnnexB.__EBSP_ESCAPE_START_CODE, start)
         if position == -1 or len(buffer) - 1 < position + 3:
             return -1
         if 0x03 < buffer[position + 3]:
@@ -69,24 +67,25 @@ class H264AnnexB:
 
     @staticmethod
     def __ebsp_unescape(buffer: bytes):
-        return b'\x00\x00' + buffer[3:4]
+        return b"\x00\x00" + buffer[3:4]
 
     @staticmethod
     def __ebsp_to_rbsp(ebsp: bytes):
-        rbsp = b''
+        rbsp = b""
         escaped_positions = H264AnnexB.__list_ebsp_escaped_position(ebsp)
         current_position = 0
         for escaped_position in escaped_positions:
             rbsp += ebsp[current_position:escaped_position]
             rbsp += H264AnnexB.__ebsp_unescape(
-                ebsp[escaped_position:escaped_position+4])
+                ebsp[escaped_position : escaped_position + 4]
+            )
             current_position = escaped_position + 4
         rbsp += ebsp[current_position:]
         return rbsp
 
     @staticmethod
     def __find_ebsp_escape_needed(buffer: bytes, start=0):
-        position = buffer.find(b'\x00\x00', start)
+        position = buffer.find(b"\x00\x00", start)
         buffer_length = len(buffer)
         if position == -1 or buffer_length - 1 < position + 2:
             return -1
@@ -112,18 +111,18 @@ class H264AnnexB:
 
     @staticmethod
     def __ebsp_escape(buffer: bytes):
-        return b'\x00\x00\x03' + buffer[2:3]
+        return b"\x00\x00\x03" + buffer[2:3]
 
     @staticmethod
     def __rbsp_to_ebsp(rbsp: bytes):
-        ebsp = b''
-        escape_needed_positions = H264AnnexB.__list_ebsp_escape_needed_position(
-            rbsp)
+        ebsp = b""
+        escape_needed_positions = H264AnnexB.__list_ebsp_escape_needed_position(rbsp)
         current_position = 0
         for escape_needed_position in escape_needed_positions:
             ebsp += rbsp[current_position:escape_needed_position]
             ebsp += H264AnnexB.__ebsp_escape(
-                rbsp[escape_needed_position:escape_needed_position+3])
+                rbsp[escape_needed_position : escape_needed_position + 3]
+            )
             current_position = escape_needed_position + 3
         ebsp += rbsp[current_position:]
         return ebsp
@@ -152,7 +151,7 @@ class H264AnnexB:
     @staticmethod
     def parse_nal_unit(buffer: bytes):
         if len(buffer) < 4:
-            H264AnnexB.__logger.warning('Invalid buffer length.')
+            H264AnnexB.__logger.warning("Invalid buffer length.")
             return
 
         stream = io.BytesIO(buffer)
@@ -160,22 +159,22 @@ class H264AnnexB:
         # Prefix
         prefix_zero_count = 0
         for _ in range(4):
-            if int.from_bytes(stream.read(1), byteorder='big') == 0x01:
+            if int.from_bytes(stream.read(1), byteorder="big") == 0x01:
                 break
             prefix_zero_count += 1
         is_start_code_long = False if prefix_zero_count <= 2 else True
         # Read header
         header_buffer = stream.read(1)
         if len(header_buffer) != 1:
-            H264AnnexB.__logger.warning('Invalid header_buffer length.')
+            H264AnnexB.__logger.warning("Invalid header_buffer length.")
             return
-        header = int.from_bytes(header_buffer, byteorder='big')
+        header = int.from_bytes(header_buffer, byteorder="big")
         forbidden_zero_bit = header >> 7
         if forbidden_zero_bit != 0x00:
-            H264AnnexB.__logger.warning('Invalid forbidden_zero_bit.')
+            H264AnnexB.__logger.warning("Invalid forbidden_zero_bit.")
             return
         nal_ref_idc = (header >> 5) & 0x03
-        nal_unit_type = header & 0x1f
+        nal_unit_type = header & 0x1F
         # Read EBSP
         ebsp = stream.read()
         rbsp = H264AnnexB.__ebsp_to_rbsp(ebsp)
@@ -184,11 +183,15 @@ class H264AnnexB:
 
     @staticmethod
     def serialize_nal_unit(nal_unit: H264NalUnit):
-        prefix = H264AnnexB.__NAL_UNIT_START_CODE_LONG if nal_unit.is_start_code_long else H264AnnexB.__NAL_UNIT_START_CODE
+        prefix = (
+            H264AnnexB.__NAL_UNIT_START_CODE_LONG
+            if nal_unit.is_start_code_long
+            else H264AnnexB.__NAL_UNIT_START_CODE
+        )
 
         header = (nal_unit.nal_ref_idc & 0x03) << 5
-        header |= nal_unit.nal_unit_type & 0x1f
+        header |= nal_unit.nal_unit_type & 0x1F
 
         ebsp = H264AnnexB.__rbsp_to_ebsp(nal_unit.rbsp)
 
-        return prefix + header.to_bytes(length=1, byteorder='big') + ebsp
+        return prefix + header.to_bytes(length=1, byteorder="big") + ebsp
