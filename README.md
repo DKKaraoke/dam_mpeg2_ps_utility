@@ -2,7 +2,7 @@
 
 ## Summary
 
-DAM Karaoke machines need a GOP index header in MPEG2-PS bitstreams. This software reads and writes correspondingly.
+DAM Karaoke machines need a GOP index header in MPEG2-PS bitstreams. This software reads and writes DAM Karaoke machine compatible MPEG2-PS.
 
 Also, DAM Karaoke machines need End of sequence (EOS) and End of stream (EOB) NAL units in H.264 bitstreams. Please use it for encoding: https://github.com/DKKaraoke/ffmpeg-x264-add-eos-eob-patched
 
