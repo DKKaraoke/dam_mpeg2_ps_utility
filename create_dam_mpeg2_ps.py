@@ -187,7 +187,7 @@ class DamMpeg2PsGenerator:
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="DAM compatible MPEG2-PS Generator")
+    parser = argparse.ArgumentParser(description="DAM compatible MPEG2-PS Creator")
     parser.add_argument("input_path", help="Input H.264-ES file path")
     parser.add_argument("--input_codec", choices=["avc", "hevc"], default="avc")
     parser.add_argument(
